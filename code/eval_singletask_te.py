@@ -19,6 +19,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import csv
 import os
 import logging
 import argparse
@@ -26,7 +27,8 @@ from tqdm import tqdm, trange
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
-from transformers import *
+# from transformers import *
+import transformers
 from models import TEClassifierRoberta, TEClassifier
 from optimization import *
 from utils import *
@@ -128,32 +130,36 @@ def main():
 
     model_state_dict = torch.load(args.model_dir + "pytorch_model.bin")
     if 'roberta' in args.model:
-        tokenizer = RobertaTokenizer.from_pretrained(args.model, do_lower_case=args.do_lower_case)
+        tokenizer = transformers.RobertaTokenizer.from_pretrained(args.model, do_lower_case=args.do_lower_case)
         cache_dir = PYTORCH_PRETRAINED_ROBERTA_CACHE / 'distributed_-1'
         model = TEClassifierRoberta.from_pretrained(args.model, state_dict=model_state_dict,
                                                     cache_dir=cache_dir, mlp_hid=args.mlp_hid_size,
-                                                    num_classes=num_classes)
+                                                    num_classes=num_classes, return_dict=False)
+
     else:
-        tokenizer = BertTokenizer.from_pretrained(args.model, do_lower_case=args.do_lower_case)
+        tokenizer = transformers.BertTokenizer.from_pretrained(args.model, do_lower_case=args.do_lower_case)
         cache_dir = PYTORCH_PRETRAINED_BERT_CACHE / 'distributed_-1'
         model = TEClassifier.from_pretrained(args.model, state_dict=model_state_dict,
                                              cache_dir=cache_dir, mlp_hid=args.mlp_hid_size,
-                                              num_classes=num_classes)
+                                              num_classes=num_classes, return_dict=False)
 
     model.to(device)
-    for eval_file in ['dev', 'test']:
-        if args.te_type in ["matres"]:
-            if eval_file == 'dev':
-                trainIds, devIds = get_train_dev_ids(args.data_dir, args.te_type)
-                eval_features_te = convert_examples_to_features_te(args.data_dir, args.te_type, 'train',
-                                                                    tokenizer, args.max_seq_length, True, devIds)
-            else:
-                eval_features_te = convert_examples_to_features_te(args.data_dir, args.te_type, eval_file,
+#     for eval_file in ['dev', 'test']:
+    for eval_file in ['old_dschang']:
+        eval_features_te = convert_examples_to_features_te(args.data_dir, args.te_type, eval_file,
                                                                     tokenizer, args.max_seq_length, True)
-        else:
-            eval_features_te = convert_examples_to_features_te(args.data_dir, args.te_type, eval_file,
-                                                                tokenizer, args.max_seq_length, True,
-                                                                analyze=args.analyze)
+#         if args.te_type in ["matres"]:
+#             if eval_file == 'dev':
+#                 trainIds, devIds = get_train_dev_ids(args.data_dir, args.te_type)
+#                 eval_features_te = convert_examples_to_features_te(args.data_dir, args.te_type, 'train',
+#                                                                     tokenizer, args.max_seq_length, True, devIds)
+#             else:
+#                 eval_features_te = convert_examples_to_features_te(args.data_dir, args.te_type, eval_file,
+#                                                                     tokenizer, args.max_seq_length, True)
+#         else:
+#             eval_features_te = convert_examples_to_features_te(args.data_dir, args.te_type, eval_file,
+#                                                                 tokenizer, args.max_seq_length, True,
+#                                                                 analyze=args.analyze)
         te_sample_size = len(eval_features_te)
         logger.info("***** Running evaluation *****")
         logger.info("  Batch size = %d", args.eval_batch_size)
@@ -178,8 +184,8 @@ def main():
         eval_sampler = SequentialSampler(eval_data)
         eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
 
-        if args.analyze:
-            temp_group_inds = [f.temp_group_ind for f in eval_features_te]
+#         if args.analyze:
+#             temp_group_inds = [f.temp_group_ind for f in eval_features_te]
 
         all_preds, te_preds, all_golds = [], [], []
 
@@ -200,6 +206,17 @@ def main():
                 te_preds.extend(pred_te)
 
         te_preds_labels = [idx2label[x] for x in te_preds[:te_sample_size]]
+
+        # open the file in the write mode
+        with open('./test_data/preds_' + eval_file + '.csv', 'w') as f:
+            # create the csv writer
+            writer = csv.writer(f)
+            header = ['true', 'pred']
+            # write a row to the csv file
+            writer.writerow(header)
+            for i in range(len(te_true_labels)):
+                writer.writerow([te_true_labels[i], te_preds_labels[i]])
+
         report = ClassificationReport(args.task_name + "-" + args.te_type, te_true_labels, te_preds_labels)
         print(report)
 

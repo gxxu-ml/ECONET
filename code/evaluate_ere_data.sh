@@ -4,13 +4,12 @@ ratio=(1.0)
 epoch=10
 batch=(2)
 mlp_hid_size=64
-seeds=(5)
+seeds=(23)
 learnrates=(5e-6)
 model="roberta-large"
 root="output"
-te="tbd"
+te="matres"
 device="0"
-model_dir="${task}_${te}_${model}_batch_${b}_lr_${lr}_epochs_${epoch}_seed_${seed}_${r}"
 for seed in "${seeds[@]}"
 do
   for r in "${ratio[@]}"
@@ -19,6 +18,8 @@ do
     do
       for b in "${batch[@]}"
       do
+        model_dir="${task}_${te}_${model}_batch_${b}_lr_${lr}_epochs_${epoch}_seed_${seed}_${r}"
+#        python ./code/eval_singletask_te_ori.py \
         python ./code/eval_singletask_te.py \
         --task_name ${task} \
         --eval_ratio ${r} \

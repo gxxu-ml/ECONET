@@ -618,24 +618,31 @@ temp_groups = [['before', 'previous to', 'prior to', 'preceding', 'followed', 'u
                ['finally', 'in the end', 'at last', 'lastly']]
 
 temp_groups_names = ['before', 'after', 'during', 'past', 'future', 'begin', 'end']
+#
+# def convert_examples_to_features_te(data_dir, data_type, split, tokenizer, max_seq_length,
+#                                     is_training, includeIds=None, analyze=False,data=None):
 
-def convert_examples_to_features_te(data_dir, data_type, split, tokenizer, max_seq_length,
-                                            is_training, includeIds=None, analyze=False):
-    """Loads a data file into a list of InputBatch"""
-    if data_type == "matres":
-        label_map = matres_label_map
-    elif data_type == "tbd":
-        label_map = tbd_label_map
-    elif data_type == "red":
-        label_map = red_label_map
 
+from os import path
+def convert_examples_to_features_te(story_dir, tokenizer, max_seq_length,
+                                            is_training, includeIds=None, analyze=False,data=None):
+    """
+    story_dir: a directory that contains a data.pickle file, which has the formal defined Matres data format.
+    Loads a data file into a list of InputBatch
+    """
+
+    label_map = matres_label_map
     all_labels = list(OrderedDict.fromkeys(label_map.keys()))
     label_to_id = OrderedDict([(all_labels[l], l) for l in range(len(all_labels))])
     id_to_label = OrderedDict([(l, all_labels[l]) for l in range(len(all_labels))])
 
     print(label_to_id)
     print(id_to_label)
-    examples = pickle.load(open("%s/%s/%s.pickle" % (data_dir, data_type, split), "rb"))
+    #if the data is directly fed, load data; otherwise, load from pickle file.
+    if data:
+        examples = data
+    else:
+        examples = pickle.load(open(path.join(story_dir, "data.pickle") , "rb"))
     count, counter, global_max = 0, 0, 0
     features, lengths = [], []
     label_counter = Counter()
@@ -696,6 +703,11 @@ def convert_examples_to_features_te(data_dir, data_type, split, tokenizer, max_s
         except:
             sent_end = len(pos_dict)
 
+        if sent_start>=sent_end:
+            print('all_keys',all_keys)
+            print('left_seq', left_seq)
+            print('right_seq', right_seq)
+            print(sent_start, sent_end)
         assert sent_start < sent_end
         assert sent_start <= lidx_start
         assert ridx_end <= sent_end
@@ -926,3 +938,7 @@ class ClassificationReport:
         res += f'\n Overall F1: {num_to_str(f1_score)} '
         self.rel_f1 = f1_score
         return res
+if __name__ == "__main__":
+    import transformers
+    tokenizer = transformers.RobertaTokenizer.from_pretrained("roberta-large", do_lower_case=True)
+    convert_examples_to_features_te('../may18_data/the-dragon-princess/',tokenizer, 200, True)

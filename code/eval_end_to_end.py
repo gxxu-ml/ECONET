@@ -27,7 +27,8 @@ from tqdm import tqdm, trange
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
-from transformers import *
+import transformers as tr
+# from transformers import *
 from models import MultitaskClassifier, MultitaskClassifierRoberta
 from optimization import *
 from collections import defaultdict
@@ -129,20 +130,23 @@ def main():
     logger.info("current task is " + str(task_name))
 
     label_map = {0: 'Negative', 1: 'Positive'}
+    print("start loading the model")
     model_state_dict = torch.load(args.model_dir + "pytorch_model.bin")
+    print("successfully loaded the model_state_dict")
+
 
     if 'roberta' in args.model:
-        tokenizer = RobertaTokenizer.from_pretrained(args.model, do_lower_case=args.do_lower_case)
+        tokenizer = tr.RobertaTokenizer.from_pretrained(args.model, do_lower_case=args.do_lower_case)
         cache_dir = PYTORCH_PRETRAINED_ROBERTA_CACHE / 'distributed_-1'
         model = MultitaskClassifierRoberta.from_pretrained(args.model, state_dict=model_state_dict,
                                                            cache_dir=cache_dir, mlp_hid=args.mlp_hid_size)
     else:
-        tokenizer = BertTokenizer.from_pretrained(args.model, do_lower_case=args.do_lower_case)
+        tokenizer = tr.BertTokenizer.from_pretrained(args.model, do_lower_case=args.do_lower_case)
         cache_dir = PYTORCH_PRETRAINED_BERT_CACHE / 'distributed_-1'
         model = MultitaskClassifier.from_pretrained(args.model, state_dict=model_state_dict,
                                                     cache_dir=cache_dir, mlp_hid=args.mlp_hid_size)
     model.to(device)
-
+    print("model successfully initialized and shifted onto gpu")
     # Prepare optimizer
     param_optimizer = list(model.named_parameters())
     no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
@@ -150,18 +154,18 @@ def main():
         {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
         {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
     ]
-    if args.fp16:
-        try:
-            from apex.optimizers import FusedAdam
-            from apex import amp
-        except ImportError:
-            raise ImportError(
-                "Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
-        optimizer = FusedAdam(optimizer_grouped_parameters,
-                              lr=args.learning_rate,
-                              bias_correction=False)
-        model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
-    
+#     if args.fp16:
+#         try:
+#             from apex.optimizers import FusedAdam
+#             from apex import amp
+#         except ImportError:
+#             raise ImportError(
+#                 "Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
+#         optimizer = FusedAdam(optimizer_grouped_parameters,
+#                               lr=args.learning_rate,
+#                               bias_correction=False)
+#         model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
+    print("starting evaluation")
     for eval_file in ['dev']:
         model.eval()
         print("=" * 50 + "Evaluating %s" % eval_file + "="* 50)
